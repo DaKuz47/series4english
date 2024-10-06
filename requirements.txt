@@ -1,0 +1,3 @@
+argclass~=1.0.3
+python-telegram-bot~=21.4
+SQLAlchemy~=2.0.32
