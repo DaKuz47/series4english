@@ -5,3 +5,5 @@ token
 kittybot
 *.db
 *.json
+*.csv
+*.xlsx

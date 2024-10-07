@@ -1,18 +1,30 @@
+from enum import Enum, auto
+import logging
+
 from sqlalchemy import select
 
-from telegram import ReplyKeyboardMarkup, Update
+from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, Update, helpers
 from telegram.constants import ParseMode
-from telegram.ext import ContextTypes
+from telegram.ext import ContextTypes, ConversationHandler
 
 from db import Session
-from db.models import LevelTest
+from db.models import Genre, LevelTest, UserLevel, Series
 from messages import (
+    CHOOSE_LEVEL,
+    CHOOSE_GENRE,
     GREETINGS,
     LEVEL_TEST_CMD,
     LEVEL_TEST_TEMPLATE,
     LEVEL_TESTS_LIST_TEMPLATE,
-    SEARCH_SERIES_CMD
+    SEARCH_SERIES_CMD,
+    SERIES_TEMPLATE,
+    SERIES_LIST_TEMPLATE,
+    EMPTY_SERIES_LIST
 )
+from utils import make_keyboard
+
+
+log = logging.getLogger(__name__)
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -45,3 +57,71 @@ async def get_level_testers(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode=ParseMode.MARKDOWN_V2,
         disable_web_page_preview=True
     )
+
+
+class SearchState(Enum):
+    USER_LEVEL = auto()
+    GENRE = auto()
+
+
+async def search_series(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id, text=CHOOSE_LEVEL,
+        reply_markup=make_keyboard(iter(UserLevel), row_size=3)
+    )
+
+    return SearchState.USER_LEVEL
+
+
+async def choose_level(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    level = update.message.text
+    log.info('User %s choose level %s', update.effective_user.name, level)
+
+    context.user_data['level'] = level
+
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id, text=CHOOSE_GENRE,
+        reply_markup=make_keyboard(iter(Genre), row_size=3)
+    )
+
+    return SearchState.GENRE
+
+
+async def choose_genre(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    genre = update.message.text
+    log.info('User %s choose genre %s', update.effective_user.name, genre)
+
+    with Session() as session:
+        series_msgs = []
+        for row in session.scalars(
+            select(Series).
+            where(Series.genre.like(f'%{genre}%')).
+            where(Series.difficulty == context.user_data['level'])
+        ):
+            series_msgs.append(SERIES_TEMPLATE.format(
+                name=helpers.escape_markdown(
+                    row.name, version=2, entity_type=ParseMode.MARKDOWN_V2,
+                ),
+                genres=row.genre,
+                years=helpers.escape_markdown(
+                    row.published_years, version=2, entity_type=ParseMode.MARKDOWN_V2,
+                ),
+                n_series=row.n_series
+            ))
+
+    final_message = SERIES_LIST_TEMPLATE.format('\n\n'.join(
+        f'{idx + 1}\. {msg}' for idx, msg in enumerate(series_msgs)
+    )) if series_msgs else EMPTY_SERIES_LIST
+
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id, text=final_message,
+        parse_mode=ParseMode.MARKDOWN_V2,
+        reply_markup=ReplyKeyboardMarkup(
+            [[SEARCH_SERIES_CMD],
+            [LEVEL_TEST_CMD]],
+            one_time_keyboard=False,
+            resize_keyboard=True
+        )
+    )
+
+    return ConversationHandler.END
