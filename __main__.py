@@ -32,7 +32,7 @@ def main():
         entry_points=[MessageHandler(Regex(SEARCH_SERIES_CMD), search_series)],
         states={
             SearchState.USER_LEVEL: [MessageHandler(Regex(UserLevel.regex()), choose_level)],
-            SearchState.GENRE: [MessageHandler(Regex(Genre.regex()), choose_genre)]
+            SearchState.GENRE: [MessageHandler(Regex(Genre.regex()), choose_genre)],
         },
         fallbacks=[MessageHandler(Regex('cancel'), lambda x: ...)]
     ))

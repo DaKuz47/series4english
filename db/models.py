@@ -1,6 +1,6 @@
 from enum import StrEnum, auto
+from typing import Self
 
-from sqlalchemy.types import ARRAY, String
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -13,9 +13,27 @@ class Genre(StrEnum):
     SCIENCE_FICTION = 'научная фантастика'
     THRILLER = 'триллер'
 
+    def _smile(self) -> str:
+        return {
+            Genre.COMEDY: '🤣',
+            Genre.ADVENTURE: '🧳',
+            Genre.HORROR: '🧟',
+            Genre.ROMANCE: '❤',
+            Genre.DETECTIVE: '🕵',
+            Genre.SCIENCE_FICTION: '🧪',
+            Genre.THRILLER: '😱'
+        }[self]
+
+    def with_smile(self) -> str:
+        return f'{self} {self._smile()}'
+
+    @staticmethod
+    def rm_smile(str) -> Self:
+        return Genre(str[:-2])
+
     @staticmethod
     def regex() -> str:
-        return rf'^({"|".join(Genre)})$'
+        return rf'^({"|".join(genre.with_smile() for genre in Genre)})$'
 
 
 class UserLevel(StrEnum):
@@ -55,3 +73,4 @@ class Series(Base):
     n_series: Mapped[int]
     is_ongoing: Mapped[bool]
     description: Mapped[str]
+    cover_url: Mapped[str]
